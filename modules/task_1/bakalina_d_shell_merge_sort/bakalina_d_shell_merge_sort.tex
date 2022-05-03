@@ -1,0 +1,1046 @@
+\documentclass{report}
+
+\usepackage[warn]{mathtext}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage{tempora}
+\usepackage[12pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\usepackage{listings}
+\lstset{language=C++,
+        basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{red}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Сортировка Шелла с простым слиянием.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнила:} \\ студентка группы 381906-2 \\ Бакалина Д.А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2022 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\par Сортировка Шелла – алгоритм сортировки, являющийся усовершенствованным вариантом сортировки вставками. Идея метода Шелла состоит в сравнении элементов, стоящих не только рядом, но и на определённом расстоянии друг от друга. Иными словами – это сортировка вставками с предварительными «грубыми» проходами. Аналогичный метод усовершенствования пузырьковой сортировки называется сортировка расчёской.
+При сортировке Шелла сначала сравниваются и сортируются между собой значения, стоящие один от другого на некотором расстоянии d. После этого процедура повторяется для некоторых меньших значений d, а завершается сортировка Шелла упорядочиванием элементов при d=1 (то есть обычной сортировкой вставками). Эффективность сортировки Шелла в определённых случаях обеспечивается тем, что элементы «быстрее» встают на свои места (в простых методах сортировки, например, пузырьковой, каждая перестановка двух элементов уменьшает количество инверсий в списке максимум на 1, а при сортировке Шелла это число может быть больше).
+Невзирая на то, что сортировка Шелла во многих случаях медленнее, чем быстрая сортировка, она имеет ряд преимуществ:
+– отсутствие потребности в памяти под стек;
+– отсутствие деградации при неудачных наборах данных – быстрая сортировка легко деградирует до O($n^2$), что хуже, чем худшее гарантированное время для сортировки Шелла.
+ 
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+\par Для успешного выполнения лабороторной работы были поставлены следующие задачи:
+\begin{itemize}
+\item Реализовать последовательный алгоритм сортировки Шелла с простым слиянием.
+\item Реализовать параллельный алгоритм, с использованием OpenMP.
+\item Реализовать параллельный алгоритм, с использованием TBB.
+\item Реализовать параллельный алгоритм, с использованием std::thread.
+\item Провести вычислительные эксперименты.
+\item Сравнить время работы каждой реализации и проанализировать результаты.
+\end{itemize}
+Так же необходимо убедиться в корректности работы каждой программы. Для этого необходимо для каждой версии реализации необходимо написать ряд тестов с использованием Google C++ Testing Framework.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\par Основная идея сортировки Шелла заключается в сравнение разделенных на группы элементов последовательности, находящихся друг от друга на некотором расстоянии. Изначально это расстояние равно $d$ или $\frac{N}{2}$, где $N$ — общее число элементов. На первом шаге каждая группа включает в себя два элемента расположенных друг от друга на расстоянии $\frac{N}{2}$; они сравниваются между собой, и, в случае необходимости, меняются местами. На последующих шагах также происходят проверка и обмен, но расстояние $d$ сокращается на $\frac{d}{2}$, и количество групп, соответственно, уменьшается. Постепенно расстояние между элементами уменьшается, и на $d=1$ проход по массиву происходит в последний раз.
+\par Общая схема метода состоит в следующем. На первом шаге алгоритма происходит упорядочивание элементов $\frac{n}{2}$ пар ($a_i, a_{\frac{n}{2} + i}$) для $1 \leq i \leq \frac{n}{2}$. Далее на втором шаге упорядочиваются элементы в $\frac{n}{4}$ группах из четырех элементов ($a_i, a_{\frac{n}{4} + 1}, a_{\frac{n}{2} + 1}, a_{\frac{3n}{4} + 1}$) для $1 \leq i \leq \frac{n}{4}$. На третьем шаге упорядочиваются элементы уже в $\frac{n}{4}$ группах из восьми элементов и т.д. На последнем шаге упорядочиваются элементы сразу во всем массиве ($a_1 , a_2 , ... , a_n$). На каждом шаге для упорядочивания элементов в группах используется метод сортировки вставками. Как можно заметить, общее количество итераций алгоритма Шелла является равным $log_2 n$.
+\par Идея простого слияния заключается в том, что мы сравниваем элементы массивов (начиная с начала) и меньший из них записываем в финальный. И затем, в массиве у которого оказался меньший элемент, переходим к следующему элементу и сравниваем теперь его. В конце, если один из массивов закончился, мы просто дописываем в финальный другой массив. После мы наш финальный массив записываем заместо двух исходных и получаем отсортированный участок.
+
+\newpage
+
+% Описание схемы распараллеливания
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+Общая схема работы параллельного алгоритма:
+\begin{enumerate}
+\item В начале все потоки вычисляют свою часть вектора (начальную позицию и длину).Исходный вектор размера $size$, который нужно отсортировать, в зависимости от числа потоков $N$. Деление вектора происходит следующим образом: делим количество всех элементов вектора на количество потоков, остатки от деления распределяем между ними.
+\item После деления вектора каждый поток получает свой кусок вектора. Каждый из потоков выполняет алгоритм сортировки Шелла для своего куска и отправляет их в результирующий. В конце все полученные результаты складывает в нужные позиции результирующего вектора.
+\item Отсортированные части сливаются в один вектор при помощи алгоритма простого слияния. В итоге результирующий вектор будет отсортирован и находиться он будет в нулевом потоке.
+\end{enumerate}
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+\par Для распараллеливания алгоритма при помощи технологии OpenMP использовалась директива препроцессора \verb|#pragma omp parallel for|. Она позволяет разделить работу по сортировке массива на N частей. Каждая отдельная часть будет представлять собой новую итерацию цикла, которая будет выполняться в отдельном потоке. Для задания числа потоков будем использовать функцию \verb|omp_set_num_threads(num_threads)| (перед параллельной областью). Таким образом, каждый из потоков будет сортировать часть массива длинной $\frac{n}{threads}$.Если при делении образуется остаток, то эти оставшиеся элементы отдаём на обработку 0-му потоку, тогда он получает $quotient + n \%$ (общее количество потоков). При достижении основным потоком \verb|parallel|, создается команда \verb|team| потоков. Основной поток входит в команду под номером 0. Код данной области становится потоковой функцией и назначается потокам для параллельного вычисления. В конце области потоки автоматически синхронизируются и последующие вычисления продолжает выполнять только основной \verb|master thread| поток.
+\par После параллельной сортировки подмассивов, полученные части соединяются в один массив при помощи алгоритма простого слияния. При помощи директивы \verb|barrier| можно определить точку синхронизации, которую должны
+достигнуть все потоки для продолжения вычислений (директива может находиться в пределах как
+параллельного фрагмента так и параллельной области, т.е. директива является отделяемой).
+
+\par После того как части массива упорядочены, будем осуществлять слияние. Оно будет осуществляться в критической секции. Для этого будет использована директива \verb|critical|, т.е. блок программного кода может выполняться только одним потоком в каждый конкретный момент времени. При попытке входа в критическую секцию, которая уже исполняется одним из потоков используется, все другие потоки приостанавливаются (блокируются). Как только критическая секция
+освобождается, один из приостановленных потоков (если они имеются) активизируется для выполнения критической секции. Для процесса слияния воспользуемся циклом while. В нем будем сливать каждые 2 части массива, которые еще не слиты, отдельными 2 потоками (простое слияние). Число кусков массива, которые будут участвовать в слияние, на каждой итерации цикла уменьшается вдвое. Таким образом, признак остановки сортировки массива - оставшаяся для слияния одна часть массива (целый массив).
+Сортировка Шелла с использованием OpenMP представлена в данной функции.
+\begin{lstlisting}
+std::vector <int> parallel_shell_sort(std::vector<int> vec, std::size_t nthreads, int size);
+\end{lstlisting}
+Входными данными будет вектор,который необходимо отсортировать,число потоков и размер вектора. Результатом работы будет отсортированнный вектор.
+
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+Для использования возможностей TBB по распараллеливанию вычислений необходимо инициализировать экземпляр класса \verb|tbb::task_scheduler_init|. Этот класс предназначен для создания потоков и внутренних структур, необходимых планировщику для работы. Исходя из общей схемы, нужно на нескольких потоках выполнить сортировку Шелла. Для распараллеливания циклов библиотека предоставляет шаблонную функцию \verb|tbb::parallel_for|, в которую передается интервал цикла и лямбда функция, в которую помещается внутреннее содержание цикла.
+\par Первый параметр функции  \verb|tbb::parallel_for| представляет итерационное пространство \verb|tbb::blocked_range|, и задает диапазон в виде полуинтервала [begin, end), где begin - 0 (начало двумерного вектора, состоящего из частей исходного массива), end - \verb|vctr.size()| (конец двумерного вектора).
+\par Второй параметр функции – функтор, класс, реализующий вычисления цикла через метод \verb|body::operator()|. Фуункция
+\verb|simple partitioner| указывает, что параллельный цикл должен рекурсивно разделять свой диапазон до тех пор, пока его нельзя будет разделить дальше. 
+\par После параллельной сортировки подмассивов, полученные части соединяются в один массив при помощи алгоритма простого слияния.
+\par Сортировка Шелла с использованием TBB представлена в данной функции.
+\begin{lstlisting}
+std::vector <int> parallel_shell_sort(std::vector<int> vec, std::size_t nthreads);
+\end{lstlisting}
+Входными данными будет вектор,который необходимо отсортировать,число потоков. Результатом работы будет отсортированнный вектор.
+
+\subsection*{std::thread}
+\addcontentsline{toc}{subsection}{std::thread}
+Для работы с std::thread необходимо "вручную" создавать объект потока \verb|std::thread|. 
+\par После этого в цикле создаем потоки, конструктор в качестве обязательных параметров принимает: указатель на функцию, которую будет исполнять(в данном случае сортировка Шелла), и параметры этой функции.
+\par Чтобы дождаться завершения вычислений потоков, мастер-поток последовательно вызывает метод \verb|join()| для каждого потока. 
+\par После параллельной сортировки подмассивов, полученные части соединяются в один массив при помощи алгоритма простого слияния.
+\par Сортировка Шелла с использованием std::thread представлена в данной функции.
+\begin{lstlisting}
+std::vector <int> parallel_shell_sort(std::vector<int> vec, std::size_t nthreads);
+\end{lstlisting}
+Входными данными будет вектор,который необходимо отсортировать,число потоков. Результатом работы будет отсортированнный вектор.
+
+В заголовочном файле shell-sort.h находятся прототипы функций для последовательного и параллельных алгоритмов сортировки Щелла.
+
+Операция слияния будет выполянться с помощью функции 
+\begin{lstlisting}
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2);
+\end{lstlisting}
+Результатом работы этой функции будет вектор, состоящий из элементов векторов,которые подавались в качестве входных данных.
+Линейный алгоритм сортировки Шелла представлен в функции:
+\begin{lstlisting}
+std::vector <int> lin_shell_sort(const std::vector <int>& v);
+\end{lstlisting}
+Для этой функции входными данными будет вектор,а резльтатом работы будет этот же вектор,только отсортированный по неубыванию.
+
+\par В файле исходного кода shell-sort.cpp содержится реализация функций, объявленных в заголовочном файле. В файле исходного кода main.cpp содержатся тесты для проверки корректности программы.
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе реализован набор тестов, разработанных при помощи библиотеки для модульного тестирования Google C++ Testing Framework. Проверяются случаи сортировки векторов с использованием разного количества потоков, а также проводится тестирование на различных размерах исходного сортируемого вектора.
+\par Успешное прохождение всех тестов доказывает корректность работы работы программы.
+
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельного варианта
+сортировки Шелла простым слиянием проводились на ПК со следующими характеристиками:
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i3-7020U CPU, 2.30GHz ;
+\item Оперативная память: 8 ГБ (DDR4), 2.30GHz;
+\item Число ядер: 2
+\item Операционная система: Windows 10 Домашняя.
+\end{itemize}
+
+\par Эксперименты проводились на векторах,различного размера, на 2 потоках (см. Таблицу 2), и на 4 потоках (см. Таблицу 1).
+
+\par Результаты экспериментов представлены в Таблице 1 и в Таблице 2.
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов для 4 потоков}
+\centering
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\multirow{3}{*}
+	{\begin{tabular}[c]{@{}c@{}}Размер\\ массива\end{tabular}} & 
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Последовательный\\ алгоритм\end{tabular}} & 
+\multicolumn{6}{c|}
+	{Параллельный алгоритм}	\\ 
+	\cline{3-8} & & 
+	\multicolumn{2}{c|}{OpenMP} & 
+	\multicolumn{2}{c|}{TBB} & 
+	\multicolumn{2}{c|}{std::thread} 
+	\\ \cline{2-8}
+	& t, с	    & t, с & speedup		& t, с & speedup		& t, с & speedup		\\ \hline
+100000   & 0.277647     & 0.143853 & 1.83008        	& 0.08677 & 1.82086 & 0.127396 & 1.88056           \\ \hline
+500000   & 1.46732     & 0.778563 & 1.88465       	& 0.374685 & 1.95859        	& 0.402012  & 1.91882          \\ \hline
+1000000    & 3.07231 & 1.56428 &  1.97224       	& 0.707184 &  2.17935  	& 1.45665  & 1.99737          \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов для 2 потоков}
+\centering
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\multirow{3}{*}
+	{\begin{tabular}[c]{@{}c@{}}Размер\\ массива\end{tabular}} & 
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Последовательный\\ алгоритм\end{tabular}} & 
+\multicolumn{6}{c|}
+	{Параллельный алгоритм}	\\ 
+	\cline{3-8} & & 
+	\multicolumn{2}{c|}{OpenMP} & 
+	\multicolumn{2}{c|}{TBB} & 
+	\multicolumn{2}{c|}{std::thread} 
+	\\ \cline{2-8}
+	& t, с	    & t, с & speedup		& t, с & speedup		& t, с & speedup		\\ \hline
+100000   & 0.249645     & 0.165192  & 1.51124        	&  0.159661 & 1.52121     	& 0.152926 & 1.61302           \\ \hline
+500000   & 1.454968     & 0.91017 & 1.59856       	& 0.854972 & 1.68168         	& 0.848549  & 1.68725          \\ \hline
+1000000    & 3.10658      & 1.84626 & 1.68264       	& 1.710978 & 1.76235       	& 1.85674  & 1.68871          \\ \hline
+\end{tabular}
+\end{table}
+
+\newpage
+
+% Выводы из результатов экспериментов
+\section*{Выводы из результатов экспериментов}
+\addcontentsline{toc}{section}{Выводы из результатов экспериментов}
+По данным экспериментов видно, что параллельный алгоритм сортировки Шелла работает значительно быстрее. На больших размерах сортируемого вектора стоит брать значение d равное N/2. Также видно, что на малых размерах вектора эффективнее работает std::thread -версия, тогда как на больших - TBB. Однако ускорения, равного числу потоков, достичь не удастся, поскольку создание потоков и распределение данных между ними приводит к увеличению времени работы параллельного алгоритма.
+
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+Таким образом, в рамках данной лабораторной работы были разработаны последовательный и параллельные алгоритмы сортировки Шелла с простым слиянием. Проведенные тесты доказали корректность разработанной программы.Основной задачей же лабораторной работы была реализация параллельной версии алгоритма. Эта задача была успешно достигнута, о чем свидетельствуют результаты вычислительных экспериментов. Они показывают, что параллельный случай эффективнее, чем последовательный.
+Работоспособность программы была проверена с помощью Google Testing Framework.
+\newpage
+
+% Литература
+\section*{Литература}
+\addcontentsline{toc}{section}{Литература}
+\begin{enumerate}
+\item Параллельные вычисления (OpenMP и Intel Cilk Plus) : метод.
+указания к выполнению лаб. работ для студентов бакалавриата, обучающихся по напр. подготовки 09.03.04 «Программная инженерия» всех форм
+обучения / сост.: А. Г. Зотин ; СибГУ им. М. Ф. Решетнева. – Красноярск,
+2017. – 60 с.
+\item Учебный курс «Технологии разработки параллельных программ» Раздел «Создание параллельной программы» Библиотека Intel Threading Building Blocks – краткое описание / сост.: А.А. Сиднев, А.В. Сысоев, И.Б. Мееров - Нижний Новгород, 2007 
+\item Учебный курс "Введение в методы параллельного
+программирования" Раздел "Параллельное программирование с использованием
+OpenMP"  / сост.: В.П. Гергель - Нижний Новгород, 2007 
+\item Учебный курс "Введение в методы параллельного программирования"
+Раздел "Параллельные методы сортировки данных". / сост.: А.А.Лабутина – Н.Новгород, Изд-во ННГУ, 2007.
+\item Introduction to Parallel Introduction to Parallel
+Programming \newline URL: http://www.hpcc.unn.ru/mskurs/ENG/PPT/pp10.pdf
+\end{enumerate} 
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\par Реализация с использованием технологии OpenMP:
+\begin{lstlisting}
+// shell_sort_omp.h
+
+// Copyright 2022 Bakalina Darya
+#ifndef MODULES_TASK_2_BAKALINA_D_SHELL_MERGE_SORT_OMP_SHELL_SORT_OMP_H_
+#define MODULES_TASK_2_BAKALINA_D_SHELL_MERGE_SORT_OMP_SHELL_SORT_OMP_H_
+#include <vector>
+
+std::vector<int> create_random_vector(int size_n);
+void print_vector(std::vector<int> vector, int size);
+bool check_equality(std::vector<int> v1, std::vector<int> v2);
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2);
+std::vector <int> lin_shell_sort(const std::vector <int>& v);
+std::vector <int> parallel_shell_sort(std::vector<int> vec, std::size_t nthreads, int size);
+
+#endif  // MODULES_TASK_2_BAKALINA_D_SHELL_MERGE_SORT_OMP_SHELL_SORT_OMP_H_
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// shell_sort_omp.cpp
+
+/// Copyright 2022 Bakalina Darya
+#include <omp.h>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include <iostream>
+
+#include "../../../modules/task_2/bakalina_d_shell_merge_sort_omp/shell_sort_omp.h"
+
+std::vector<int> create_random_vector(int size_n) {
+    if (size_n <= 0) {
+        throw "Wrong size";
+    }
+    std::vector <int> v(size_n);
+    std::random_device dev;
+    std::mt19937 gen(dev());
+    for (int i = 0; i < size_n; ++i) {
+        v[i] = gen() % 100;
+    }
+    return v;
+}
+
+bool check_equality(std::vector<int> v1, std::vector<int> v2) {
+    bool flag = 0;
+    int size = v1.size();
+    if (v1.size() != v2.size()) {
+        throw "Vector sizes do not match";
+    }
+    for (int i = 0; i < size; i++) {
+        if (v1[i] == v2[i]) {
+            flag = 1;
+        }
+    }
+    return flag;
+}
+
+void print_vector(std::vector<int> vector, int size) {
+    if (size <= 0) {
+        throw "Wrong size";
+    }
+    for (int i = 0; i < size; ++i) {
+        std::cout << vector[i] << std::endl;
+    }
+}
+
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2) {
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    int size_1 = vctr_1.size();
+    int size_2 = vctr_2.size();
+    std::vector<int> res(size_1 + size_2);
+    while (size_1 && size_2) {
+        if (vctr_1[i] < vctr_2[j]) {
+            res[k] = vctr_1[i];
+            i++;
+            size_1--;
+        } else {
+            res[k] = vctr_2[j];
+            j++;
+            size_2--;
+        }
+        k++;
+    }
+    if (size_1 == 0) {
+        for (int l = j; l < j + size_2; l++) {
+            res[k] = vctr_2[l];
+            k++;
+        }
+    } else if (size_2 == 0) {
+        for (int m = i; m < i + size_1; m++) {
+            res[k] = vctr_1[m];
+            k++;
+        }
+    }
+    return res;
+}
+
+std::vector <int> lin_shell_sort(const std::vector <int>& v) {
+    int iter = 0;
+    int i = 0;
+    int j = 0;
+    int tmp = 0;
+    int size_n = v.size();
+    if (size_n < 1) {
+        throw "Wrong size";
+    }
+    std::vector <int> res(v);
+    for (iter = size_n / 2; iter > 0; iter /= 2) {
+        for (i = iter; i < size_n; i++) {
+            for (j = i - iter; j >= 0 && res[j] > res[j + iter]; j -= iter) {
+                tmp = res[j];
+                res[j] = res[j + iter];
+                res[j + iter] = tmp;
+            }
+        }
+    }
+    return res;
+}
+
+std::vector <int> parallel_shell_sort(std::vector<int> vctr, std::size_t num_threads, int size) {
+    if (size < 1) {
+        throw "Wrong size";
+    }
+    if (size == 1) {
+        return vctr;
+    }
+    omp_set_num_threads(num_threads);
+    std::vector<int> res(size);
+    std::size_t quotient = vctr.size() / num_threads;
+    std::size_t residue = vctr.size() % num_threads;
+    std::vector<int> tmp_res;
+#pragma omp parallel shared(vctr, residue) private(tmp_res)
+    {
+        std::size_t tid = omp_get_thread_num();
+        if (tid == 0) {
+            tmp_res.resize(quotient + residue);
+            std::copy(vctr.begin(), vctr.begin() + quotient + residue, tmp_res.begin());
+        } else {
+            tmp_res.resize(quotient);
+        }
+        for (std::size_t i = 1; i < num_threads; i++) {
+            if (tid == i) {
+                std::copy(vctr.begin() + quotient * i + residue, vctr.end() - quotient * (num_threads - i - 1),
+                    tmp_res.begin());
+            }
+        }
+        tmp_res = lin_shell_sort(tmp_res);
+#pragma omp master
+        res = tmp_res;
+#pragma omp barrier
+#pragma omp critical
+        if (tid != 0) {
+            res = merge_two_vector(tmp_res, res);
+        }
+    }
+    return res;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2022 Bakalina Darya
+#include <gtest/gtest.h>
+#include <vector>
+#include "./shell_sort_omp.h"
+
+TEST(Parallel_algorithm, vector_with_one_size) {
+    std::vector<int> v = { 34 };
+    ASSERT_NO_THROW(v = parallel_shell_sort(v, 2, 1));
+}
+
+TEST(Parallel_algorithm, sort_vector_with_shell_sort) {
+    int size = 6;
+    std::vector<int> v = { 7, 1, 14, 73, 5, 38 };
+    std::vector<int> res = { 1, 5, 7, 14, 38, 73 };
+    v = lin_shell_sort(v);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(v[i], res[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vector_with_shell_merge_sort) {
+    int size = 6;
+    std::vector<int> v = { 10, 4, 17, 76, 8, 41 };
+    std::vector<int> res = { 4, 8, 10, 17, 41, 76 };
+    v = parallel_shell_sort(v, 2, size);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(v[i], res[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vectors_with_size_5) {
+    int size = 5;
+    std::vector<int> v(size);
+    std::vector<int> res(size);
+    v = create_random_vector(size);
+    res = v;
+    v = parallel_shell_sort(v, 2, size);
+    res = lin_shell_sort(res);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(res[i], v[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vectors_with_size_10) {
+    int size = 10;
+    std::vector<int> v(size);
+    std::vector<int> res(size);
+    v = create_random_vector(size);
+    res = v;
+    v = parallel_shell_sort(v, 2, size);
+    res = lin_shell_sort(res);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(res[i], v[i]);
+    }
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par Реализация с использованием технологии TBB:
+
+\begin{lstlisting}
+// shell_sort_tbb.h
+
+// Copyright 2022 Bakalina Darya
+#ifndef MODULES_TASK_3_BAKALINA_D_SHELL_MERGE_SORT_SHELL_SORT_TBB_H_
+#define MODULES_TASK_3_BAKALINA_D_SHELL_MERGE_SORT_SHELL_SORT_TBB_H_
+#include <vector>
+
+std::vector<int> create_random_vector(int size_n);
+void print_vector(std::vector<int> vector, int size);
+bool check_equality(std::vector<int> v1, std::vector<int> v2);
+std::vector<std::vector<int>> partition(const std::vector<int>& vctr, std::size_t num_threads);
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2);
+std::vector <int> shell_sort(const std::vector <int>& v, int size_n);
+std::vector <int> lin_shell_sort(std::vector<int> vctr, int size);
+std::vector <int> parallel_shell_sort(std::vector<int> vec, std::size_t num_threads);
+
+#endif  // MODULES_TASK_3_BAKALINA_D_SHELL_MERGE_SORT_SHELL_SORT_TBB_H_
+\end{lstlisting}
+\begin{lstlisting}
+// shell_sort_tbb.cpp
+
+// Copyright 2022 Bakalina Darya
+#include <tbb/tbb.h>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include <iostream>
+
+#include "../../../modules/task_3/bakalina_d_shell_merge_sort/shell_sort_tbb.h"
+
+std::vector<int> create_random_vector(int size_n) {
+    if (size_n <= 0) {
+        throw "Wrong size";
+    }
+    std::vector <int> v(size_n);
+    std::random_device dev;
+    std::mt19937 gen(dev());
+    for (int i = 0; i < size_n; ++i) {
+        v[i] = gen() % 100;
+    }
+    return v;
+}
+
+bool check_equality(std::vector<int> v1, std::vector<int> v2) {
+    bool flag = 0;
+    int size = v1.size();
+    if (v1.size() != v2.size()) {
+        throw "Vector sizes do not match";
+    }
+    for (int i = 0; i < size; i++) {
+        if (v1[i] == v2[i]) {
+            flag = 1;
+        }
+    }
+    return flag;
+}
+
+void print_vector(std::vector<int> vector, int size) {
+    if (size <= 0) {
+        throw "Wrong size";
+    }
+    for (int i = 0; i < size; ++i) {
+        std::cout << vector[i] << std::endl;
+    }
+}
+
+std::vector<std::vector<int>> partition(const std::vector<int>& vctr, std::size_t num_threads) {
+    if (num_threads <= 0) {
+        throw "Invalid number of threads";
+    }
+    std::vector<std::vector<int>> res;
+    size_t interval = vctr.size() / num_threads;
+    size_t residue = vctr.size() % num_threads;
+    size_t start = 0, finish = 0;
+    for (size_t i = 0; i < fmin(num_threads, vctr.size()); ++i) {
+        finish += (residue > 0) ? (interval + !!(residue--)) : interval;
+        res.push_back(std::vector<int>(vctr.begin() + start, vctr.begin() + finish));
+        start = finish;
+    }
+    return res;
+}
+
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2) {
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    int size_1 = vctr_1.size();
+    int size_2 = vctr_2.size();
+    std::vector<int> res(size_1 + size_2);
+    while (size_1 && size_2) {
+        if (vctr_1[i] < vctr_2[j]) {
+            res[k] = vctr_1[i];
+            i++;
+            size_1--;
+        } else {
+            res[k] = vctr_2[j];
+            j++;
+            size_2--;
+        }
+        k++;
+    }
+    if (size_1 == 0) {
+        for (int l = j; l < j + size_2; l++) {
+            res[k] = vctr_2[l];
+            k++;
+        }
+    } else if (size_2 == 0) {
+        for (int m = i; m < i + size_1; m++) {
+            res[k] = vctr_1[m];
+            k++;
+        }
+    }
+    return res;
+}
+
+std::vector <int> shell_sort(const std::vector <int>& v, int size_n) {
+    int iter = 0;
+    int i = 0;
+    int j = 0;
+    int tmp = 0;
+    if (size_n < 1) {
+        throw "Wrong size";
+    }
+    std::vector <int> res(v);
+    for (iter = size_n / 2; iter > 0; iter /= 2) {
+        for (i = iter; i < size_n; i++) {
+            for (j = i - iter; j >= 0 && res[j] > res[j + iter]; j -= iter) {
+                tmp = res[j];
+                res[j] = res[j + iter];
+                res[j + iter] = tmp;
+            }
+        }
+    }
+    return res;
+}
+
+std::vector <int> lin_shell_sort(std::vector<int> vctr, int size) {
+    if (size < 1) {
+        throw "Wrong size";
+    }
+    if (size == 1) {
+        return vctr;
+    }
+    std::vector<int> res = vctr;
+    std::vector<int> vctr_l;
+    std::vector<int> vctr_r;
+    if (size % 2 == 0) {
+        vctr_l.resize(size / 2);
+        vctr_r.resize(size / 2);
+    } else {
+        vctr_l.resize(size / 2);
+        vctr_r.resize(size / 2 + 1);
+    }
+    std::copy(res.begin(), res.begin() + size / 2, vctr_l.begin());
+    std::copy(res.begin() + size / 2, res.end(), vctr_r.begin());
+    vctr_l = shell_sort(vctr_l, size);
+    vctr_r = shell_sort(vctr_r, size);
+    res = merge_two_vector(vctr_l, vctr_r);
+    return res;
+}
+
+std::vector <int> parallel_shell_sort(std::vector<int> vctr, std::size_t num_threads) {
+    std::size_t size = vctr.size();
+    if (size < 1) {
+        throw "Wrong size";
+    }
+    if (size == 1) {
+        return vctr;
+    }
+    std::vector<std::vector<int>> partitioned = partition(vctr, num_threads);
+    std::vector<int> res;
+    tbb::task_scheduler_init init(num_threads);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, partitioned.size(), 1),
+        [&partitioned](const tbb::blocked_range<size_t>& rng) {
+            int start = rng.begin(), finish = rng.end();
+            for (int i = start; i != finish; ++i)
+                partitioned[i] = shell_sort(partitioned[i], partitioned[i].size());
+        }, tbb::simple_partitioner());
+    init.terminate();
+    res = partitioned[0];
+    for (std::size_t i = 1; i < num_threads; i++) {
+        res = merge_two_vector(res, partitioned[i]);
+    }
+    return res;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2022 Bakalina Darya
+#include <gtest/gtest.h>
+#include <vector>
+#include "./shell_sort_tbb.h"
+
+TEST(Parallel_algorithm, sort_vector_with_shell_sort) {
+    int size = 6;
+    std::vector<int> v = { 7, 1, 14, 73, 5, 38 };
+    std::vector<int> res = { 1, 5, 7, 14, 38, 73 };
+    v = shell_sort(v, size);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(v[i], res[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vector_with_shell_merge_sort) {
+    int size = 6;
+    std::vector<int> v = { 10, 4, 17, 76, 8, 41 };
+    std::vector<int> res = { 4, 8, 10, 17, 41, 76 };
+    v = parallel_shell_sort(v, 2);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(v[i], res[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vectors_with_size_5) {
+    int size = 5;
+    std::vector<int> v(size);
+    std::vector<int> res(size);
+    v = create_random_vector(size);
+    res = v;
+    v = parallel_shell_sort(v, 2);
+    res = shell_sort(res, size);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(res[i], v[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vectors_with_size_10) {
+    int size = 10;
+    std::vector<int> v(size);
+    std::vector<int> res(size);
+    v = create_random_vector(size);
+    res = v;
+    v = parallel_shell_sort(v, 2);
+    res = shell_sort(res, size);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(res[i], v[i]);
+    }
+}
+
+TEST(Parallel_algorithm, vector_with_one_size) {
+    std::vector<int> v = { 34 };
+    ASSERT_NO_THROW(v = parallel_shell_sort(v, 2));
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par Реализация с использованием технологии std::thread:
+
+\begin{lstlisting}
+// shell_sort_std.h
+
+// Copyright 2022 Bakalina Darya
+#ifndef MODULES_TASK_4_BAKALINA_D_SHELL_MERGE_SORT_SHELL_SORT_STD_H_
+#define MODULES_TASK_4_BAKALINA_D_SHELL_MERGE_SORT_SHELL_SORT_STD_H_
+
+#include <vector>
+
+std::vector<int> create_random_vector(int size_n);
+void print_vector(std::vector<int> vector, int size);
+bool check_equality(std::vector<int> v1, std::vector<int> v2);
+std::vector<std::vector<int>> partition(const std::vector<int>& vctr, std::size_t num_threads);
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2);
+std::vector <int> shell_sort(const std::vector <int>& v);
+std::vector <int> lin_shell_sort(std::vector<int> vctr, int size);
+std::vector <int> parallel_shell_sort(std::vector<int> vec, std::size_t num_threads);
+
+#endif  // MODULES_TASK_4_BAKALINA_D_SHELL_MERGE_SORT_SHELL_SORT_STD_H_
+\end{lstlisting}
+\begin{lstlisting}
+// shell_sort_std.cpp
+
+// Copyright 2022 Bakalina Darya
+#include <vector>
+#include <utility>
+#include <random>
+#include <algorithm>
+#include <iostream>
+#include "../../../modules/task_4/bakalina_d_shell_merge_sort/shell_sort_std.h"
+#include "../../../3rdparty/unapproved/unapproved.h"
+
+std::vector<int> create_random_vector(int size_n) {
+    if (size_n <= 0) {
+        throw "Wrong size";
+    }
+    std::vector <int> v(size_n);
+    std::random_device dev;
+    std::mt19937 gen(dev());
+    for (int i = 0; i < size_n; ++i) {
+        v[i] = gen() % 100;
+    }
+    return v;
+}
+
+bool check_equality(std::vector<int> v1, std::vector<int> v2) {
+    bool flag = 0;
+    int size = v1.size();
+    if (v1.size() != v2.size()) {
+        throw "Vector sizes do not match";
+    }
+    for (int i = 0; i < size; i++) {
+        if (v1[i] == v2[i]) {
+            flag = 1;
+        }
+    }
+    return flag;
+}
+
+void print_vector(std::vector<int> vector, int size) {
+    if (size <= 0) {
+        throw "Wrong size";
+    }
+    for (int i = 0; i < size; ++i) {
+        std::cout << vector[i] << std::endl;
+    }
+}
+
+std::vector<std::vector<int>> partition(const std::vector<int>& vctr, std::size_t num_threads) {
+    if (num_threads <= 0) {
+        throw "Invalid number of threads";
+    }
+    std::vector<std::vector<int>> res;
+    size_t interval = vctr.size() / num_threads;
+    size_t residue = vctr.size() % num_threads;
+    size_t start = 0, finish = 0;
+    for (size_t i = 0; i < fmin(num_threads, vctr.size()); ++i) {
+        finish += (residue > 0) ? (interval + !!(residue--)) : interval;
+        res.push_back(std::vector<int>(vctr.begin() + start, vctr.begin() + finish));
+        start = finish;
+    }
+    return res;
+}
+
+std::vector<int> merge_two_vector(std::vector<int> vctr_1, std::vector<int> vctr_2) {
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    int size_1 = vctr_1.size();
+    int size_2 = vctr_2.size();
+    std::vector<int> res(size_1 + size_2);
+    while (size_1 && size_2) {
+        if (vctr_1[i] < vctr_2[j]) {
+            res[k] = vctr_1[i];
+            i++;
+            size_1--;
+        } else {
+            res[k] = vctr_2[j];
+            j++;
+            size_2--;
+        }
+        k++;
+    }
+    if (size_1 == 0) {
+        for (int l = j; l < j + size_2; l++) {
+            res[k] = vctr_2[l];
+            k++;
+        }
+    } else if (size_2 == 0) {
+        for (int m = i; m < i + size_1; m++) {
+            res[k] = vctr_1[m];
+            k++;
+        }
+    }
+    return res;
+}
+
+std::vector <int> shell_sort(const std::vector <int>& v) {
+    int size_n = v.size();
+    if (size_n < 1) {
+        throw "Wrong size";
+    }
+    int iter = 0;
+    int i = 0;
+    int j = 0;
+    int tmp = 0;
+    std::vector <int> res(v);
+    for (iter = size_n / 2; iter > 0; iter /= 2) {
+        for (i = iter; i < size_n; i++) {
+            for (j = i - iter; j >= 0 && res[j] > res[j + iter]; j -= iter) {
+                tmp = res[j];
+                res[j] = res[j + iter];
+                res[j + iter] = tmp;
+            }
+        }
+    }
+    return res;
+}
+
+std::vector <int> lin_shell_sort(std::vector<int> vctr, int size) {
+    if (size < 1) {
+        throw "Wrong size";
+    }
+    if (size == 1) {
+        return vctr;
+    }
+    std::vector<int> res = vctr;
+    std::vector<int> vctr_l;
+    std::vector<int> vctr_r;
+    if (size % 2 == 0) {
+        vctr_l.resize(size / 2);
+        vctr_r.resize(size / 2);
+    } else {
+        vctr_l.resize(size / 2);
+        vctr_r.resize(size / 2 + 1);
+    }
+    std::copy(res.begin(), res.begin() + size / 2, vctr_l.begin());
+    std::copy(res.begin() + size / 2, res.end(), vctr_r.begin());
+    vctr_l = shell_sort(vctr_l);
+    vctr_r = shell_sort(vctr_r);
+    res = merge_two_vector(vctr_l, vctr_r);
+    return res;
+}
+
+std::vector <int> parallel_shell_sort(std::vector<int> vctr, std::size_t num_threads) {
+    std::size_t size = vctr.size();
+    if (size == 1) {
+        return vctr;
+    }
+    if (size < 1) {
+        throw "Wrong size. It should be greater than 0.";
+    }
+    std::vector<std::vector<int>> splited = partition(vctr, num_threads);
+    std::vector<std::thread> thrds;
+    std::vector<int> res;
+    for (std::size_t i = 0; i < num_threads; i++) {
+        thrds.push_back(std::thread([&splited, i]() {
+            splited[i] = shell_sort(splited[i]);
+            }));
+    }
+    for (auto& t : thrds) {
+        t.join();
+    }
+    res = splited[0];
+    for (std::size_t i = 1; i < num_threads; i++) {
+        res = merge_two_vector(res, splited[i]);
+    }
+
+    return res;
+}
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2022 Bakalina Darya
+#include <gtest/gtest.h>
+#include <vector>
+#include "../../../3rdparty/unapproved/unapproved.h"
+#include "./shell_sort_std.h"
+
+TEST(Parallel_algorithm, sort_vector_with_shell_merge_sort) {
+    int size = 6;
+    std::vector<int> v = { 20, 14, 27, 96, 18, 51 };
+    std::vector<int> res = { 14, 18, 20, 27, 51, 96 };
+    v = parallel_shell_sort(v, 2);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(v[i], res[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vector_with_shell_sort) {
+    int size = 6;
+    std::vector<int> v = { 6, 5, 4, 3, 2, 1 };
+    std::vector<int> res = { 1, 2, 3, 4, 5, 6 };
+    v = shell_sort(v);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(v[i], res[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vectors_with_size_5) {
+    int size = 5;
+    std::vector<int> v(size);
+    std::vector<int> res(size);
+    v = create_random_vector(size);
+    res = v;
+    v = parallel_shell_sort(v, 2);
+    res = shell_sort(res);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(res[i], v[i]);
+    }
+}
+
+TEST(Parallel_algorithm, sort_vectors_with_size_10) {
+    int size = 10;
+    std::vector<int> v(size);
+    std::vector<int> res(size);
+    v = create_random_vector(size);
+    res = v;
+    v = parallel_shell_sort(v, 2);
+    res = shell_sort(res);
+    for (int i = 0; i < size; i++) {
+        ASSERT_EQ(res[i], v[i]);
+    }
+}
+
+TEST(Parallel_algorithm, vector_with_one_size) {
+    std::vector<int> v = { 34 };
+    ASSERT_NO_THROW(v = parallel_shell_sort(v, 2));
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\end{document}
